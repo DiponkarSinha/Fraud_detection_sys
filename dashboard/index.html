@@ -147,6 +147,10 @@
                                 <i class="fas fa-download me-1"></i>
                                 Export
                             </button>
+                            <button class="btn btn-sm btn-outline-info" onclick="dashboard.showEmailModal()">
+                                <i class="fas fa-envelope me-1"></i>
+                                Email Dashboard
+                            </button>
                         </div>
                     </div>
                     <div class="card-body">
@@ -203,6 +207,42 @@
                     <button type="button" class="btn btn-success" onclick="markAsLegitimate()">
                         <i class="fas fa-check me-1"></i>
                         Mark Legitimate
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Dashboard Modal -->
+    <div class="modal fade" id="emailModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-envelope text-info"></i> Email Dashboard Link
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="emailForm">
+                        <div class="mb-3">
+                            <label for="emailAddress" class="form-label">Email Address</label>
+                            <input type="email" class="form-control" id="emailAddress" placeholder="Enter email address" required>
+                            <div class="form-text">The dashboard link and current statistics will be sent to this email.</div>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Dashboard URLs:</strong><br>
+                            <small>Local: http://localhost:5000</small><br>
+                            <small id="networkUrl">Network: Detecting...</small>
+                        </div>
+                    </form>
+                    <div id="emailResult" class="mt-3"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-info" onclick="dashboard.sendEmail()">
+                        <i class="fas fa-paper-plane"></i> Send Email
                     </button>
                 </div>
             </div>

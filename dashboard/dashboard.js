@@ -206,10 +206,16 @@ class FraudDashboard {
     }
 
     updateStatistics(stats) {
-        document.getElementById('totalTransactions').textContent = stats.totalTransactions;
-        document.getElementById('fraudDetected').textContent = stats.fraudDetected;
-        document.getElementById('fraudRate').textContent = `${stats.fraudRate}%`;
-        document.getElementById('lastUpdated').textContent = this.formatTimestamp(stats.lastUpdated);
+        // Use banking dataset statistics if available
+        const totalTransactions = stats.totalTransactions || stats.total_transactions || 0;
+        const fraudDetected = stats.fraudDetected || stats.fraud_detected || 0;
+        const fraudRate = stats.fraudRate || stats.fraud_rate || 0;
+        const lastUpdated = stats.lastUpdated || stats.last_updated || new Date().toISOString();
+        
+        document.getElementById('totalTransactions').textContent = totalTransactions.toLocaleString();
+        document.getElementById('fraudDetected').textContent = fraudDetected.toLocaleString();
+        document.getElementById('fraudRate').textContent = fraudRate + '%';
+        document.getElementById('lastUpdated').textContent = new Date(lastUpdated).toLocaleString();
     }
 
     updateDashboard() {
@@ -481,6 +487,67 @@ class FraudDashboard {
         setTimeout(() => {
             alertBanner.classList.add('d-none');
         }, 5000);
+    }
+
+    showEmailModal() {
+        const modal = new bootstrap.Modal(document.getElementById('emailModal'));
+        modal.show();
+        
+        // Clear previous results
+        document.getElementById('emailResult').innerHTML = '';
+        document.getElementById('emailAddress').value = '';
+    }
+
+    async sendEmail() {
+        const emailAddress = document.getElementById('emailAddress').value;
+        const resultDiv = document.getElementById('emailResult');
+        
+        if (!emailAddress) {
+            resultDiv.innerHTML = '<div class="alert alert-danger">Please enter an email address.</div>';
+            return;
+        }
+        
+        // Show loading state
+        resultDiv.innerHTML = '<div class="alert alert-info"><i class="fas fa-spinner fa-spin"></i> Preparing email...</div>';
+        
+        try {
+            const response = await fetch('/api/send-dashboard-link', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email: emailAddress })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> <strong>Email prepared successfully!</strong><br>
+                        <small>${result.message}</small>
+                    </div>
+                    <div class="alert alert-info">
+                        <strong>Dashboard URLs:</strong><br>
+                        <small>Local: <a href="${result.local_url}" target="_blank">${result.local_url}</a></small><br>
+                        <small>Network: <a href="${result.dashboard_url}" target="_blank">${result.dashboard_url}</a></small>
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-info-circle"></i> <strong>Note:</strong> ${result.note}
+                    </div>
+                `;
+                
+                // Update network URL in the form
+                document.getElementById('networkUrl').textContent = `Network: ${result.dashboard_url}`;
+                
+                this.showAlert(`Dashboard link prepared for ${emailAddress}`, 'success');
+            } else {
+                resultDiv.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Error: ${result.error}</div>`;
+            }
+        } catch (error) {
+            console.error('Error sending email:', error);
+            resultDiv.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Error: ${error.message}</div>`;
+        }
     }
 
     showLoading() {

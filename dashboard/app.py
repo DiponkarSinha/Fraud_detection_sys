@@ -8,10 +8,15 @@ import os
 import json
 import logging
 from datetime import datetime, timedelta
-from flask import Flask, render_template, jsonify, send_from_directory
+from flask import Flask, render_template, jsonify, send_from_directory, request
 from flask_cors import CORS
 import pandas as pd
+import numpy as np
 from pathlib import Path
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import socket
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -52,6 +57,28 @@ class FraudDataManager:
                     return data
         except Exception as e:
             logger.error(f"Error loading fraud report: {e}")
+        return None
+    
+    def load_banking_dataset(self):
+        """Load banking dataset to get accurate transaction counts"""
+        try:
+            banking_path = self.data_raw_path / 'banking_transactions_train.csv'
+            if banking_path.exists():
+                df = pd.read_csv(banking_path)
+                total_transactions = len(df)
+                fraud_transactions = len(df[df['is_fraud'] == 1])
+                legitimate_transactions = len(df[df['is_fraud'] == 0])
+                fraud_rate = (fraud_transactions / total_transactions) * 100 if total_transactions > 0 else 0
+                
+                return {
+                    'total_transactions': total_transactions,
+                    'fraud_detected': fraud_transactions,
+                    'legitimate_transactions': legitimate_transactions,
+                    'fraud_rate_percent': round(fraud_rate, 2),
+                    'timestamp': datetime.now().isoformat()
+                }
+        except Exception as e:
+            logger.error(f"Error loading banking dataset: {e}")
         return None
     
     def get_latest_csv_files(self, limit=5):
@@ -131,6 +158,9 @@ class FraudDataManager:
     
     def get_dashboard_data(self):
         """Get comprehensive dashboard data"""
+        # Load banking dataset for accurate statistics
+        banking_stats = self.load_banking_dataset()
+        
         # Load fraud report
         fraud_report = self.load_fraud_report()
         
@@ -149,16 +179,24 @@ class FraudDataManager:
                 transactions = self.analyze_csv_file(csv_file)
                 fraud_transactions.extend(transactions)
         
-        # Calculate statistics
-        total_transactions = fraud_report.get('total_transactions', len(fraud_transactions) * 10) if fraud_report else 100
-        fraud_detected = len(fraud_transactions)
-        fraud_rate = (fraud_detected / total_transactions * 100) if total_transactions > 0 else 0
+        # Use banking dataset statistics if available, otherwise calculate from transactions
+        if banking_stats:
+            total_transactions = banking_stats['total_transactions']
+            fraud_detected = banking_stats['fraud_detected']
+            fraud_rate = banking_stats['fraud_rate_percent']
+            last_updated = banking_stats['timestamp']
+        else:
+            # Fallback to existing calculation
+            total_transactions = fraud_report.get('total_transactions', len(fraud_transactions) * 10) if fraud_report else 100
+            fraud_detected = len(fraud_transactions)
+            fraud_rate = (fraud_detected / total_transactions * 100) if total_transactions > 0 else 0
+            last_updated = fraud_report.get('timestamp', datetime.now().isoformat()) if fraud_report else datetime.now().isoformat()
         
         statistics = {
             'totalTransactions': total_transactions,
             'fraudDetected': fraud_detected,
             'fraudRate': round(fraud_rate, 1),
-            'lastUpdated': fraud_report.get('timestamp', datetime.now().isoformat()) if fraud_report else datetime.now().isoformat(),
+            'lastUpdated': last_updated,
             'highRiskCount': len([t for t in fraud_transactions if t['riskLevel'] == 'high']),
             'mediumRiskCount': len([t for t in fraud_transactions if t['riskLevel'] == 'medium']),
             'lowRiskCount': len([t for t in fraud_transactions if t['riskLevel'] == 'low'])
@@ -167,7 +205,8 @@ class FraudDataManager:
         return {
             'transactions': fraud_transactions,
             'statistics': statistics,
-            'lastUpdate': datetime.now().isoformat()
+            'lastUpdate': datetime.now().isoformat(),
+            'banking_dataset_info': banking_stats
         }
     
     def generate_sample_transaction(self, index):
@@ -282,8 +321,178 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
-        'version': '1.0.0'
+        'service': 'Fraud Detection Dashboard'
     })
+
+@app.route('/api/send-dashboard-link', methods=['POST'])
+def send_dashboard_link():
+    """Send dashboard link via email"""
+    try:
+        data = request.get_json()
+        recipient_email = data.get('email')
+        
+        if not recipient_email:
+            return jsonify({
+                'success': False,
+                'error': 'Email address is required'
+            }), 400
+        
+        # Get local IP address
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        dashboard_url = f"http://{local_ip}:5000"
+        
+        # Get current statistics
+        dashboard_data = data_manager.get_dashboard_data()
+        stats = dashboard_data['statistics']
+        
+        # Create email content
+        subject = "🚨 Fraud Detection Dashboard - Access Link"
+        
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Fraud Detection Dashboard</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh;">
+            <div style="max-width: 650px; margin: 0 auto; padding: 40px 20px;">
+                <!-- Header Section -->
+                <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); padding: 30px; border-radius: 20px 20px 0 0; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+                    <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">🛡️ Fraud Detection Dashboard</h1>
+                    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">Real-time Security Monitoring System</p>
+                </div>
+                
+                <!-- Main Content -->
+                <div style="background: white; padding: 0; border-radius: 0 0 20px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden;">
+                    
+                    <!-- Dashboard Access Section -->
+                    <div style="background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%); padding: 25px; color: white;">
+                        <h2 style="margin: 0 0 15px 0; font-size: 20px; display: flex; align-items: center;">🔗 Dashboard Access Links</h2>
+                        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin: 10px 0;">
+                            <p style="margin: 5px 0; font-size: 14px;"><strong>🌐 Network URL:</strong></p>
+                            <a href="{dashboard_url}" style="color: #ffeaa7; text-decoration: none; font-weight: 600; word-break: break-all;">{dashboard_url}</a>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin: 10px 0;">
+                            <p style="margin: 5px 0; font-size: 14px;"><strong>🏠 Local URL:</strong></p>
+                            <a href="http://localhost:5000" style="color: #ffeaa7; text-decoration: none; font-weight: 600;">http://localhost:5000</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Statistics Section -->
+                    <div style="padding: 25px; background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%); color: white;">
+                        <h2 style="margin: 0 0 20px 0; font-size: 20px; display: flex; align-items: center;">📊 Live Statistics</h2>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 12px; text-align: center; backdrop-filter: blur(10px);">
+                                <div style="font-size: 24px; font-weight: 700; margin-bottom: 5px;">{stats.get('totalTransactions', 'N/A'):,}</div>
+                                <div style="font-size: 12px; opacity: 0.9;">📈 Total Transactions</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 12px; text-align: center; backdrop-filter: blur(10px);">
+                                <div style="font-size: 24px; font-weight: 700; margin-bottom: 5px; color: #ff7675;">{stats.get('fraudDetected', 'N/A'):,}</div>
+                                <div style="font-size: 12px; opacity: 0.9;">🚨 Fraud Detected</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 12px; text-align: center; backdrop-filter: blur(10px);">
+                                <div style="font-size: 24px; font-weight: 700; margin-bottom: 5px; color: #fdcb6e;">{stats.get('fraudRate', 'N/A')}%</div>
+                                <div style="font-size: 12px; opacity: 0.9;">📊 Fraud Rate</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 12px; text-align: center; backdrop-filter: blur(10px);">
+                                <div style="font-size: 11px; font-weight: 600; margin-bottom: 5px;">🕒 Updated</div>
+                                <div style="font-size: 10px; opacity: 0.9;">{stats.get('lastUpdated', 'N/A')}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Features Section -->
+                    <div style="padding: 25px; background: linear-gradient(135deg, #00cec9 0%, #00b894 100%); color: white;">
+                        <h2 style="margin: 0 0 20px 0; font-size: 20px;">🔍 Advanced Features</h2>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px;">
+                            <div style="display: flex; align-items: center; padding: 8px;">⚡ Real-time Monitoring</div>
+                            <div style="display: flex; align-items: center; padding: 8px;">📈 Interactive Analytics</div>
+                            <div style="display: flex; align-items: center; padding: 8px;">🔍 Investigation Tools</div>
+                            <div style="display: flex; align-items: center; padding: 8px;">🎯 Risk Assessment</div>
+                            <div style="display: flex; align-items: center; padding: 8px;">📋 Export Reports</div>
+                            <div style="display: flex; align-items: center; padding: 8px;">📱 Mobile Responsive</div>
+                        </div>
+                    </div>
+                    
+                    <!-- CTA Section -->
+                    <div style="padding: 30px; text-align: center; background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%);">
+                        <a href="{dashboard_url}" style="display: inline-block; background: linear-gradient(135deg, #ff7675 0%, #e17055 100%); color: white; padding: 15px 40px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 16px; box-shadow: 0 8px 25px rgba(0,0,0,0.2); transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px;">🚀 Launch Dashboard</a>
+                        <p style="margin: 15px 0 0 0; color: rgba(255,255,255,0.8); font-size: 14px;">Click to access your fraud detection system</p>
+                    </div>
+                    
+                    <!-- Footer -->
+                    <div style="padding: 20px; background: #2d3436; color: #b2bec3; text-align: center; font-size: 12px;">
+                        <p style="margin: 0 0 5px 0;">🛡️ Fraud Detection System - Powered by AI</p>
+                        <p style="margin: 0; opacity: 0.7;">Generated: {datetime.now().strftime('%B %d, %Y at %H:%M:%S')}</p>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        text_body = f"""
+        🚨 FRAUD DETECTION DASHBOARD - ACCESS LINK
+        
+        Dashboard URL: {dashboard_url}
+        Local Access: http://localhost:5000
+        
+        📊 CURRENT STATISTICS:
+        - Total Transactions: {stats.get('totalTransactions', 'N/A'):,}
+        - Fraud Detected: {stats.get('fraudDetected', 'N/A'):,}
+        - Fraud Rate: {stats.get('fraudRate', 'N/A')}%
+        - Last Updated: {stats.get('lastUpdated', 'N/A')}
+        
+        🔍 DASHBOARD FEATURES:
+        - Real-time fraud transaction monitoring
+        - Interactive charts and analytics
+        - Transaction investigation tools
+        - Risk assessment visualization
+        - Export capabilities for reporting
+        - Mobile-responsive design
+        
+        Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        """
+        
+        # Create message
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = 'fraud-detection@system.local'
+        msg['To'] = recipient_email
+        
+        # Attach both text and HTML versions
+        text_part = MIMEText(text_body, 'plain')
+        html_part = MIMEText(html_body, 'html')
+        
+        msg.attach(text_part)
+        msg.attach(html_part)
+        
+        # For demo purposes, we'll return the email content instead of actually sending
+        # In a real implementation, you would configure SMTP settings
+        
+        return jsonify({
+            'success': True,
+            'message': f'Dashboard link prepared for {recipient_email}',
+            'dashboard_url': dashboard_url,
+            'local_url': 'http://localhost:5000',
+            'email_content': {
+                'subject': subject,
+                'html_body': html_body,
+                'text_body': text_body
+            },
+            'statistics': stats,
+            'note': 'Email content generated successfully. In production, configure SMTP to actually send emails.'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error sending dashboard link: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 # Static file serving
 @app.route('/<path:filename>')
