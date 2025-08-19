@@ -337,9 +337,13 @@ def send_dashboard_link():
                 'error': 'Email address is required'
             }), 400
         
-        # Get local IP address
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
+        # Get local IP address with fallback
+        try:
+            hostname = socket.gethostname()
+            local_ip = socket.gethostbyname(hostname)
+        except Exception:
+            # Fallback to localhost if hostname resolution fails
+            local_ip = "127.0.0.1"
         dashboard_url = f"http://{local_ip}:5000"
         
         # Get current statistics
