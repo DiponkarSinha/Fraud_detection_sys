@@ -164,20 +164,20 @@ class FraudDataManager:
         # Load fraud report
         fraud_report = self.load_fraud_report()
         
-        # Get fraud transactions
+        # Get fraud transactions - prioritize CSV files over generated data
         fraud_transactions = []
         
-        if fraud_report:
-            # Use report data to generate sample transactions
-            fraud_count = fraud_report.get('fraud_detected', 0)
-            for i in range(fraud_count):
-                fraud_transactions.append(self.generate_sample_transaction(i))
-        else:
-            # Analyze latest CSV files
-            csv_files = self.get_latest_csv_files()
+        # First try to analyze CSV files
+        csv_files = self.get_latest_csv_files()
+        if csv_files:
             for csv_file in csv_files:
                 transactions = self.analyze_csv_file(csv_file)
                 fraud_transactions.extend(transactions)
+        elif fraud_report:
+            # Fallback to report data to generate sample transactions
+            fraud_count = fraud_report.get('fraud_detected', 0)
+            for i in range(fraud_count):
+                fraud_transactions.append(self.generate_sample_transaction(i))
         
         # Use banking dataset statistics if available, otherwise calculate from transactions
         if banking_stats:
