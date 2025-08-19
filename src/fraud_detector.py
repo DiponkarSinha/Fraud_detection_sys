@@ -18,9 +18,9 @@ class FraudDetector:
     def __init__(self):
         self.model = None
         self.feature_columns = [
-            'amount', 'time_of_day', 'day_of_week', 'is_weekend',
-            'previous_transactions_today', 'account_age_days',
-            'location_risk_score', 'merchant_category'
+            'amount', 'time_hour', 'day_of_week', 'is_weekend',
+            'previous_failed_attempts', 'account_age_days',
+            'avg_transaction_amount', 'transaction_frequency'
         ]
     
     def load_data(self, csv_path):
@@ -37,10 +37,6 @@ class FraudDetector:
         """Preprocess the data for model training/prediction"""
         # Create feature matrix
         X = df[self.feature_columns].copy()
-        
-        # Handle categorical variables
-        if 'merchant_category' in X.columns:
-            X = pd.get_dummies(X, columns=['merchant_category'], prefix='merchant')
         
         # Handle missing values
         X = X.fillna(X.mean())
