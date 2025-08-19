@@ -155,8 +155,23 @@ def main():
     # Initialize detector
     detector = FraudDetector()
     
+    # Load and process data - check for latest CSV file
+    import sys
+    import glob
+    
+    if len(sys.argv) > 1:
+        data_path = sys.argv[1]
+    else:
+        # Find the most recent CSV file
+        csv_files = glob.glob('data/raw/*.csv')
+        if csv_files:
+            data_path = max(csv_files, key=os.path.getctime)
+        else:
+            data_path = 'data/raw/test_transactions.csv'
+    
+    print(f"📊 Processing file: {data_path}")
+    
     # Paths
-    data_path = 'data/raw/test_transactions.csv'
     model_path = 'models/fraud_model.joblib'
     report_path = 'outputs/fraud_report.json'
     
