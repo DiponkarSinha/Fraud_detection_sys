@@ -1,117 +1,121 @@
 name: Fraud Detection Pipeline
 
 on:
-  push:
-    paths:
-      - 'data/**/*.csv'
-  pull_request:
-    paths:
-      - 'data/**/*.csv'
-  workflow_dispatch:
+  push:                           # Run on every push to main
+    branches: [ "main" ]
+    paths-ignore:
+      - "**/*.md"
+      - ".gitignore"
+  pull_request:                   # Run on pull requests to main
+    branches: [ "main" ]
+  workflow_dispatch:              # Run manually from GitHub Actions tab
+
+permissions:
+  contents: read
+  id-token: write                 # Required for AWS OIDC
+
+env:
+  AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+  ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
 
 jobs:
   fraud-detection:
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 60
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        
-    - name: Run fraud detection
-      run: |
-        python src/fraud_detector.py
-        
-    - name: Upload fraud reports
-      uses: actions/upload-artifact@v3
-      with:
-        name: fraud-detection-reports
-        path: |
-          outputs/fraud_report.json
-          outputs/fraud_report_detailed.csv
-          
-    - name: Notify on fraud detection
-      if: success()
-      run: |
-        echo "Fraud detection completed successfully!"
-        if [ -f "outputs/fraud_report.json" ]; then
-          FRAUD_COUNT=$(python -c "import json; data=json.load(open('outputs/fraud_report.json')); print(data['fraud_detected'])")
-          if [ "$FRAUD_COUNT" -gt "0" ]; then
-            echo "🚨 ALERT: $FRAUD_COUNT fraudulent transactions detected!"
-            echo "fraud_detected=$FRAUD_COUNT" >> $GITHUB_OUTPUT
-          fi
-        fi
-        
-    - name: Update Kaggle Dataset
-      if: success()
-      env:
-        KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-        KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-      run: |
-        echo "📊 Updating Kaggle dataset with new fraud data..."
-        pip install kaggle
-        mkdir -p ~/.kaggle
-        echo '{"username":"'$KAGGLE_USERNAME'","key":"'$KAGGLE_KEY'"}' > ~/.kaggle/kaggle.json
-        chmod 600 ~/.kaggle/kaggle.json
-        
-        # Create dataset version with new fraud data
-        kaggle datasets version -p data/raw -m "Auto-update: New fraud transactions detected $(date)"
-        echo "✅ Kaggle dataset updated successfully!"
-        
-    - name: Trigger AWS Lambda for Email Notification
-      if: success()
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_REGION: ${{ secrets.AWS_REGION }}
-        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-      run: |
-        echo "☁️ Triggering AWS Lambda for fraud email notification..."
-        pip install boto3
-        
-        # Get fraud count from report
-        FRAUD_COUNT=$(python -c "import json; data=json.load(open('outputs/fraud_report.json')); print(data['fraud_detected'])")
-        
-        # Create Python script for Lambda invocation
-        cat > invoke_lambda.py << EOF
-import boto3
-import json
-import os
-import sys
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-lambda_client = boto3.client('lambda', region_name=os.environ['AWS_REGION'])
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-fraud_count = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
 
-payload = {
-    'fraud_count': fraud_count,
-    'timestamp': os.popen('date -u +"%Y-%m-%dT%H:%M:%SZ"').read().strip(),
-    'repository': '${{ github.repository }}',
-    'commit_sha': '${{ github.sha }}',
-    'email_recipient': '${{ secrets.FRAUD_ALERT_EMAIL }}'
-}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-response = lambda_client.invoke(
-    FunctionName='fraud-detection-email-alert',
-    InvocationType='Event',
-    Payload=json.dumps(payload)
+      - name: Configure Kaggle (from secrets)
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          pip install kaggle
+          mkdir -p ~/.kaggle
+          printf '{"username":"%s","key":"%s"}' "$KAGGLE_USERNAME" "$KAGGLE_KEY" > ~/.kaggle/kaggle.json
+          chmod 600 ~/.kaggle/kaggle.json
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Ensure output dirs
+        run: mkdir -p outputs data/raw
+
+      - name: Run fraud detection
+        run: |
+          python src/fraud_detector.py
+
+      - name: Upload fraud reports (always upload if created)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fraud-detection-reports
+          path: |
+            outputs/fraud_report.json
+            outputs/fraud_report_detailed.csv
+          if-no-files-found: warn
+
+      - name: Update Kaggle Dataset
+        if: success() && (hashFiles('outputs/fraud_report.json') != '')
+        run: |
+          echo "📊 Updating Kaggle dataset with new fraud data..."
+          kaggle datasets version -p data/raw -m "Auto-update: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "✅ Kaggle dataset updated successfully!"
+
+      - name: Trigger AWS Lambda for Email Notification
+        if: success() && (hashFiles('outputs/fraud_report.json') != '')
+        env:
+          FRAUD_ALERT_EMAIL: ${{ secrets.FRAUD_ALERT_EMAIL }}
+        run: |
+          pip install boto3
+          FRAUD_COUNT=$(python - <<'PY'
+import json,sys
+try:
+  with open("outputs/fraud_report.json") as f:
+    d=json.load(f)
+  print(int(d.get("fraud_detected",0)))
+except Exception:
+  print(0)
+PY
 )
-
-print(f'✅ AWS Lambda invoked: {response["StatusCode"]}')
-EOF
-        
-        # Invoke AWS Lambda function
-        GITHUB_REPOSITORY="${{ github.repository }}" \
-        GITHUB_SHA="${{ github.sha }}" \
-        FRAUD_ALERT_EMAIL="${{ secrets.FRAUD_ALERT_EMAIL }}" \
-        python3 invoke_lambda.py $FRAUD_COUNT
-        echo "📧 Email notification triggered via AWS Lambda!"
+          python - <<'PY'
+import boto3, json, os, subprocess
+lambda_client = boto3.client('lambda', region_name=os.environ.get("AWS_REGION"))
+payload = {
+  "fraud_count": int(os.environ.get("FRAUD_COUNT","0")),
+  "timestamp": subprocess.check_output(['date','-u','+%Y-%m-%dT%H:%M:%SZ']).decode().strip(),
+  "repository": os.environ.get("GITHUB_REPOSITORY",""),
+  "commit_sha": os.environ.get("GITHUB_SHA",""),
+  "email_recipient": os.environ.get("FRAUD_ALERT_EMAIL","")
+}
+resp = lambda_client.invoke(
+  FunctionName="fraud-detection-email-alert",
+  InvocationType="Event",
+  Payload=json.dumps(payload).encode()
+)
+print("✅ AWS Lambda invoked:", resp.get("StatusCode"))
+PY
+        env:
+          FRAUD_COUNT: ${{ steps.fraud-detection.outcome || '0' }}
