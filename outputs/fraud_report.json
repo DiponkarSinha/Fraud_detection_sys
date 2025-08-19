@@ -1,8 +1,8 @@
 {
-  "timestamp": "2025-08-19T19:32:05.794507",
+  "timestamp": "2025-08-19T19:34:29.398251",
   "total_transactions": 5,
-  "fraud_detected": 1,
-  "fraud_rate_percent": 20.0,
+  "fraud_detected": 2,
+  "fraud_rate_percent": 40.0,
   "high_risk_transactions": 0,
   "medium_risk_transactions": 2,
   "low_risk_transactions": 3
