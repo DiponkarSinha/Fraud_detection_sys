@@ -1,0 +1,16 @@
+transaction_id,user_id,amount,merchant,location,timestamp,card_number,is_fraud,risk_level,transaction_type
+TXN_001,USR_12345,15000.50,"Suspicious Electronics Store","Lagos, Nigeria",2025-01-19 15:30:00,****-****-****-1234,1,high,online
+TXN_002,USR_67890,8750.25,"Unknown Marketplace","Moscow, Russia",2025-01-19 15:31:15,****-****-****-5678,1,high,online
+TXN_003,USR_11111,3200.00,"Legitimate Coffee Shop","New York, USA",2025-01-19 15:32:30,****-****-****-9012,0,low,in_store
+TXN_004,USR_22222,22000.75,"Fraudulent Investment Co","Unknown Location",2025-01-19 15:33:45,****-****-****-3456,1,high,online
+TXN_005,USR_33333,450.00,"Local Grocery Store","San Francisco, USA",2025-01-19 15:35:00,****-****-****-7890,0,low,in_store
+TXN_006,USR_44444,12500.00,"Fake Luxury Goods","Bangkok, Thailand",2025-01-19 15:36:15,****-****-****-2345,1,high,online
+TXN_007,USR_55555,6800.30,"Suspicious Gaming Site","Manila, Philippines",2025-01-19 15:37:30,****-****-****-6789,1,medium,online
+TXN_008,USR_66666,95.50,"Gas Station","Los Angeles, USA",2025-01-19 15:38:45,****-****-****-0123,0,low,in_store
+TXN_009,USR_77777,18500.00,"Fraudulent Crypto Exchange","Suspicious Area",2025-01-19 15:40:00,****-****-****-4567,1,high,online
+TXN_010,USR_88888,275.80,"Restaurant","Chicago, USA",2025-01-19 15:41:15,****-****-****-8901,0,low,in_store
+TXN_011,USR_99999,9200.45,"Fake Electronics Vendor","Mumbai, India",2025-01-19 15:42:30,****-****-****-2346,1,medium,online
+TXN_012,USR_10101,1150.00,"Bookstore","Boston, USA",2025-01-19 15:43:45,****-****-****-5679,0,low,in_store
+TXN_013,USR_12121,16750.25,"Suspicious Online Store","Karachi, Pakistan",2025-01-19 15:45:00,****-****-****-9013,1,high,online
+TXN_014,USR_13131,320.75,"Pharmacy","Seattle, USA",2025-01-19 15:46:15,****-****-****-3457,0,low,in_store
+TXN_015,USR_14141,11200.00,"Fraudulent Travel Agency","Cairo, Egypt",2025-01-19 15:47:30,****-****-****-7891,1,medium,online
