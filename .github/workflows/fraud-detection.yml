@@ -123,8 +123,8 @@ jobs:
           timestamp = subprocess.check_output(['date','-u','+%Y-%m-%dT%H:%M:%SZ']).decode().strip()
           repository = os.environ.get("GITHUB_REPOSITORY", "")
           commit_sha = os.environ.get("GITHUB_SHA", "")
-          recipient_email = os.environ.get("FRAUD_ALERT_EMAIL", "")
-          sender_email = os.environ.get("SES_SENDER_EMAIL", "")
+          recipient_email = os.environ.get("FRAUD_ALERT_EMAIL", "diponkarsinha.cz@gmail.com")
+          sender_email = os.environ.get("SES_SENDER_EMAIL", "u4510634023@gmail.com")
 
           if fraud_count > 0:
               subject = f"🚨 FRAUD ALERT: {fraud_count} Fraudulent Transaction(s) Detected"
