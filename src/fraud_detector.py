@@ -6,22 +6,20 @@ Processes transaction CSV files and detects fraudulent transactions
 
 import pandas as pd
 import numpy as np
+import json
+import os
+from datetime import datetime
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.preprocessing import StandardScaler
 import joblib
-import os
-import json
-from datetime import datetime
+import glob
 
 class FraudDetector:
     def __init__(self):
         self.model = None
-        self.feature_columns = [
-            'amount', 'time_hour', 'day_of_week', 'is_weekend',
-            'previous_failed_attempts', 'account_age_days',
-            'avg_transaction_amount', 'transaction_frequency'
-        ]
+        self.feature_columns = ['amount']  # Will be dynamically set based on available columns
     
     def load_data(self, csv_path):
         """Load transaction data from CSV file"""
@@ -35,16 +33,44 @@ class FraudDetector:
     
     def preprocess_data(self, df):
         """Preprocess the data for model training/prediction"""
-        # Create feature matrix
-        X = df[self.feature_columns].copy()
+        # Create features from available columns
+        features_df = pd.DataFrame()
+        
+        # Amount feature (always available)
+        if 'amount' in df.columns:
+            features_df['amount'] = df['amount']
+        
+        # Extract time features if timestamp is available
+        if 'timestamp' in df.columns:
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            features_df['time_hour'] = df['timestamp'].dt.hour
+            features_df['day_of_week'] = df['timestamp'].dt.dayofweek
+            features_df['is_weekend'] = (df['timestamp'].dt.dayofweek >= 5).astype(int)
+        
+        # Risk level encoding if available
+        if 'risk_level' in df.columns:
+            risk_mapping = {'low': 1, 'medium': 2, 'high': 3}
+            features_df['risk_score'] = df['risk_level'].map(risk_mapping).fillna(1)
+        
+        # Transaction type encoding if available
+        if 'transaction_type' in df.columns:
+            features_df['is_online'] = (df['transaction_type'] == 'online').astype(int)
+        
+        # If we have very few features, add some derived ones
+        if len(features_df.columns) < 3:
+            features_df['amount_log'] = np.log1p(features_df['amount']) if 'amount' in features_df.columns else 0
+            features_df['amount_squared'] = features_df['amount'] ** 2 if 'amount' in features_df.columns else 0
         
         # Handle missing values
-        X = X.fillna(X.mean())
+        features_df = features_df.fillna(features_df.mean())
+        
+        # Update feature columns for future use
+        self.feature_columns = list(features_df.columns)
         
         # Get target variable if available
         y = df['is_fraud'] if 'is_fraud' in df.columns else None
         
-        return X, y
+        return features_df, y
     
     def train_model(self, X, y):
         """Train the fraud detection model"""

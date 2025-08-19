@@ -17,6 +17,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import socket
+import boto3
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -82,12 +83,14 @@ class FraudDataManager:
         return None
     
     def get_latest_csv_files(self, limit=5):
-        """Get the latest CSV files from data/raw directory"""
+        """Get the latest CSV files from data/raw directory (excluding training data)"""
         try:
             if not self.data_raw_path.exists():
                 return []
             
             csv_files = list(self.data_raw_path.glob('*.csv'))
+            # Exclude training dataset - only show new transaction data
+            csv_files = [f for f in csv_files if 'banking_transactions_train.csv' not in f.name]
             csv_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
             return csv_files[:limit]
         except Exception as e:
@@ -158,33 +161,39 @@ class FraudDataManager:
     
     def get_dashboard_data(self):
         """Get comprehensive dashboard data"""
-        # Load banking dataset for accurate statistics
-        banking_stats = self.load_banking_dataset()
-        
-        # Load fraud report
+        # Load fraud report for fallback
         fraud_report = self.load_fraud_report()
         
         # Get fraud transactions - prioritize CSV files over generated data
         fraud_transactions = []
+        all_transactions = []
         
-        # First try to analyze CSV files
+        # First try to analyze CSV files (excluding training data)
         csv_files = self.get_latest_csv_files()
         if csv_files:
             for csv_file in csv_files:
-                transactions = self.analyze_csv_file(csv_file)
-                fraud_transactions.extend(transactions)
+                # Load all transactions from CSV to calculate accurate statistics
+                try:
+                    df = pd.read_csv(csv_file)
+                    all_transactions.extend(df.to_dict('records'))
+                    # Get fraud transactions for display
+                    fraud_df = df[df['is_fraud'] == 1] if 'is_fraud' in df.columns else df
+                    transactions = self.process_fraud_transactions(fraud_df)
+                    fraud_transactions.extend(transactions)
+                except Exception as e:
+                    logger.error(f"Error processing CSV {csv_file}: {e}")
         elif fraud_report:
             # Fallback to report data to generate sample transactions
             fraud_count = fraud_report.get('fraud_detected', 0)
             for i in range(fraud_count):
                 fraud_transactions.append(self.generate_sample_transaction(i))
         
-        # Use banking dataset statistics if available, otherwise calculate from transactions
-        if banking_stats:
-            total_transactions = banking_stats['total_transactions']
-            fraud_detected = banking_stats['fraud_detected']
-            fraud_rate = banking_stats['fraud_rate_percent']
-            last_updated = banking_stats['timestamp']
+        # Calculate statistics from actual CSV data
+        if all_transactions:
+            total_transactions = len(all_transactions)
+            fraud_detected = len([t for t in all_transactions if t.get('is_fraud', 0) == 1])
+            fraud_rate = (fraud_detected / total_transactions * 100) if total_transactions > 0 else 0
+            last_updated = datetime.now().isoformat()
         else:
             # Fallback to existing calculation
             total_transactions = fraud_report.get('total_transactions', len(fraud_transactions) * 10) if fraud_report else 100
@@ -206,7 +215,12 @@ class FraudDataManager:
             'transactions': fraud_transactions,
             'statistics': statistics,
             'lastUpdate': datetime.now().isoformat(),
-            'banking_dataset_info': banking_stats
+            'csv_files_info': {
+                'total_transactions': total_transactions,
+                'fraud_detected': fraud_detected,
+                'fraud_rate_percent': round(fraud_rate, 2),
+                'files_processed': len(csv_files) if csv_files else 0
+            }
         }
     
     def generate_sample_transaction(self, index):
@@ -474,22 +488,51 @@ def send_dashboard_link():
         msg.attach(text_part)
         msg.attach(html_part)
         
-        # For demo purposes, we'll return the email content instead of actually sending
-        # In a real implementation, you would configure SMTP settings
-        
-        return jsonify({
-            'success': True,
-            'message': f'Dashboard link prepared for {recipient_email}',
-            'dashboard_url': dashboard_url,
-            'local_url': 'http://localhost:5000',
-            'email_content': {
-                'subject': subject,
-                'html_body': html_body,
-                'text_body': text_body
-            },
-            'statistics': stats,
-            'note': 'Email content generated successfully. In production, configure SMTP to actually send emails.'
-        })
+        # Try to send email via AWS SES
+        try:
+            ses_client = boto3.client('ses', region_name='us-east-1')
+            
+            response = ses_client.send_email(
+                Source='u4510634023@gmail.com',
+                Destination={'ToAddresses': [recipient_email]},
+                Message={
+                    'Subject': {'Data': subject, 'Charset': 'UTF-8'},
+                    'Body': {
+                        'Text': {'Data': text_body, 'Charset': 'UTF-8'},
+                        'Html': {'Data': html_body, 'Charset': 'UTF-8'}
+                    }
+                }
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': f'Dashboard link sent successfully to {recipient_email}',
+                'dashboard_url': dashboard_url,
+                'local_url': 'http://localhost:5000',
+                'email_sent': True,
+                'message_id': response.get('MessageId'),
+                'statistics': stats
+            })
+            
+        except Exception as email_error:
+            logger.warning(f"Failed to send email via SES: {email_error}")
+            
+            # Fallback: return email content for manual sending
+            return jsonify({
+                 'success': True,
+                 'message': f'Dashboard link prepared for {recipient_email} (email sending failed)',
+                 'dashboard_url': dashboard_url,
+                 'local_url': 'http://localhost:5000',
+                 'email_sent': False,
+                 'email_error': str(email_error),
+                 'email_content': {
+                     'subject': subject,
+                     'html_body': html_body,
+                     'text_body': text_body
+                 },
+                 'statistics': stats,
+                 'note': 'Email content generated successfully. SES sending failed, configure SMTP or check AWS credentials.'
+             })
         
     except Exception as e:
         logger.error(f"Error sending dashboard link: {e}")
