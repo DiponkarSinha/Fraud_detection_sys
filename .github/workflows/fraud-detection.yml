@@ -163,6 +163,5 @@ try:
     print(f"📊 Fraud count: {fraud_count}, Recipient: {recipient_email}")
 except Exception as e:
     print(f"❌ Error sending fraud alert email: {str(e)}")
-PY
         env:
           FRAUD_COUNT: ${{ env.FRAUD_COUNT }}
