@@ -1,9 +1,0 @@
-transaction_id,user_id,amount,merchant_category,location,time_hour,day_of_week,is_weekend,previous_failed_attempts,account_age_days,avg_transaction_amount,transaction_frequency,is_fraud
-TXN022,USER200,50000.0,electronics,Unknown,2,7,1,8,1,25.0,1,1
-TXN023,USER201,35.75,coffee_shop,Seattle,9,2,0,0,1500,65.0,40,0
-TXN024,USER202,18500.0,jewelry,Miami,23,6,1,5,3,80.0,2,1
-TXN025,USER203,42.99,grocery,Portland,11,4,0,0,900,95.0,25,0
-TXN026,USER204,75.50,restaurant,Denver,18,5,0,0,700,85.0,20,0
-TXN027,USER205,22000.0,electronics,Las_Vegas,1,1,0,7,2,45.0,1,1
-TXN028,USER206,89.25,pharmacy,Chicago,14,3,0,0,1200,110.0,30,0
-TXN029,USER207,156.00,clothing,Boston,16,6,1,0,800,125.0,18,0
