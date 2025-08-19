@@ -176,30 +176,30 @@ class FraudDetector:
 
 def main():
     """Main function to run fraud detection"""
-    print("🚀 Starting Fraud Detection System...")
+    import sys
+    
+    # Get data path from command line argument or find latest CSV
+    if len(sys.argv) > 1:
+        data_path = sys.argv[1]
+    else:
+        # Find the latest CSV file in data/raw directory
+        csv_files = glob.glob('data/raw/*.csv')
+        if csv_files:
+            # Sort by modification time, get the latest
+            data_path = max(csv_files, key=os.path.getmtime)
+            print(f"📁 Auto-detected latest CSV: {data_path}")
+        else:
+            data_path = 'data/raw/banking_dataset.csv'
+    
+    print(f"🔍 Starting fraud detection analysis on: {data_path}")
     
     # Initialize detector
     detector = FraudDetector()
     
-    # Load and process data - check for latest CSV file
-    import sys
-    import glob
-    
-    if len(sys.argv) > 1:
-        data_path = sys.argv[1]
-    else:
-        # Find the most recent CSV file
-        csv_files = glob.glob('data/raw/*.csv')
-        if csv_files:
-            data_path = max(csv_files, key=os.path.getctime)
-        else:
-            data_path = 'data/raw/test_transactions.csv'
-    
-    print(f"📊 Processing file: {data_path}")
-    
     # Paths
     model_path = 'models/fraud_model.joblib'
     report_path = 'outputs/fraud_report.json'
+    root_report_path = 'fraud_report.json'  # For dashboard compatibility
     
     # Create directories if they don't exist
     os.makedirs('models', exist_ok=True)
@@ -226,6 +226,12 @@ def main():
     
     # Generate report
     summary = detector.generate_report(df, predictions, probabilities, report_path)
+    
+    # Also save report to root directory for dashboard
+    import shutil
+    if os.path.exists(report_path):
+        shutil.copy2(report_path, root_report_path)
+        print(f"📋 Report copied to {root_report_path} for dashboard")
     
     # Alert if fraud detected
     if summary['fraud_detected'] > 0:
