@@ -92,73 +92,74 @@ jobs:
         run: |
           # Get fraud count from JSON and export so Python can read it from env
           FRAUD_COUNT=$(python - <<'PY'
-import json, sys
-try:
-    with open("outputs/fraud_report.json") as f:
-        d = json.load(f)
-    print(int(d.get("fraud_detected", 0)))
-except Exception:
-    print(0)
-PY
-)
+          import json, sys
+          try:
+              with open("outputs/fraud_report.json") as f:
+                  d = json.load(f)
+              print(int(d.get("fraud_detected", 0)))
+          except Exception:
+              print(0)
+          PY
+          )
           export FRAUD_COUNT
 
           # Send email via SES
           python - <<'PY'
-import boto3, json, os, subprocess
-from datetime import datetime
+          import boto3, json, os, subprocess
+          from datetime import datetime
 
-ses_client = boto3.client('ses', region_name=os.environ.get("AWS_REGION", "us-east-1"))
+          
+          ses_client = boto3.client('ses', region_name=os.environ.get("AWS_REGION", "us-east-1"))
+          
+          fraud_count = int(os.environ.get("FRAUD_COUNT", "0"))
+          timestamp = subprocess.check_output(['date','-u','+%Y-%m-%dT%H:%M:%SZ']).decode().strip()
+          repository = os.environ.get("GITHUB_REPOSITORY", "")
+          commit_sha = os.environ.get("GITHUB_SHA", "")
+          recipient_email = os.environ.get("FRAUD_ALERT_EMAIL", "")
+          sender_email = os.environ.get("SES_SENDER_EMAIL", "")
 
-fraud_count = int(os.environ.get("FRAUD_COUNT", "0"))
-timestamp = subprocess.check_output(['date','-u','+%Y-%m-%dT%H:%M:%SZ']).decode().strip()
-repository = os.environ.get("GITHUB_REPOSITORY", "")
-commit_sha = os.environ.get("GITHUB_SHA", "")
-recipient_email = os.environ.get("FRAUD_ALERT_EMAIL", "")
-sender_email = os.environ.get("SES_SENDER_EMAIL", "")
-
-if fraud_count > 0:
-    subject = f"🚨 FRAUD ALERT: {fraud_count} Fraudulent Transaction(s) Detected"
-    priority = "HIGH"
-    alert_type = "FRAUD DETECTED"
-else:
-    subject = "✅ Fraud Detection System: No Threats Detected"
-    priority = "NORMAL"
-    alert_type = "SYSTEM HEALTHY"
-
-email_body = f"""FRAUD DETECTION SYSTEM ALERT
-============================
-
-Alert Type: {alert_type}
-Fraud Count: {fraud_count}
-Priority: {priority}
-Timestamp: {timestamp}
-
-Technical Details:
-- Repository: {repository}
-- Commit: {commit_sha[:8]}...
-- AWS Region: {os.environ.get('AWS_REGION', 'us-east-1')}
-
-{'⚠️ IMMEDIATE ACTION REQUIRED: Review detected fraudulent transactions.' if fraud_count > 0 else '✅ No fraud detected. System operating normally.'}
-
-View details: https://github.com/{repository}/actions
-Fraud Report: https://github.com/{repository}/blob/main/outputs/fraud_report.json
-
-This is an automated message from the Fraud Detection System.
-Powered by AWS SES + GitHub Actions + Machine Learning"""
-
-try:
-    response = ses_client.send_email(
-        Source=sender_email,
-        Destination={'ToAddresses': [recipient_email]},
-        Message={
-            'Subject': {'Data': subject, 'Charset': 'UTF-8'},
-            'Body': {'Text': {'Data': email_body, 'Charset': 'UTF-8'}}
-        }
-    )
-    print("✅ Fraud alert email sent successfully!")
-    print(f"📧 MessageId: {response.get('MessageId')}")
-    print(f"📊 Fraud count: {fraud_count}, Recipient: {recipient_email}")
-except Exception as e:
-    print(f"❌ Error sending fraud alert email: {e}")
-PY
+          if fraud_count > 0:
+              subject = f"🚨 FRAUD ALERT: {fraud_count} Fraudulent Transaction(s) Detected"
+              priority = "HIGH"
+              alert_type = "FRAUD DETECTED"
+          else:
+              subject = "✅ Fraud Detection System: No Threats Detected"
+              priority = "NORMAL"
+              alert_type = "SYSTEM HEALTHY"
+          
+          email_body = f"""FRAUD DETECTION SYSTEM ALERT
+          ============================
+          
+          Alert Type: {alert_type}
+          Fraud Count: {fraud_count}
+          Priority: {priority}
+          Timestamp: {timestamp}
+          
+          Technical Details:
+          - Repository: {repository}
+          - Commit: {commit_sha[:8]}...
+          - AWS Region: {os.environ.get('AWS_REGION', 'us-east-1')}
+          
+          {'⚠️ IMMEDIATE ACTION REQUIRED: Review detected fraudulent transactions.' if fraud_count > 0 else '✅ No fraud detected. System operating normally.'}
+          
+          View details: https://github.com/{repository}/actions
+          Fraud Report: https://github.com/{repository}/blob/main/outputs/fraud_report.json
+          
+          This is an automated message from the Fraud Detection System.
+          Powered by AWS SES + GitHub Actions + Machine Learning"""
+          
+          try:
+              response = ses_client.send_email(
+                  Source=sender_email,
+                  Destination={'ToAddresses': [recipient_email]},
+                  Message={
+                      'Subject': {'Data': subject, 'Charset': 'UTF-8'},
+                      'Body': {'Text': {'Data': email_body, 'Charset': 'UTF-8'}}
+                  }
+              )
+              print("✅ Fraud alert email sent successfully!")
+              print(f"📧 MessageId: {response.get('MessageId')}")
+              print(f"📊 Fraud count: {fraud_count}, Recipient: {recipient_email}")
+          except Exception as e:
+              print(f"❌ Error sending fraud alert email: {e}")
+          PY
