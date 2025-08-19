@@ -1,0 +1,13 @@
+{
+  "verification_timestamp": "2025-08-18T12:52:13.929615",
+  "s3_bucket": "fraud-detection-system-20250818",
+  "ses_email": "diponkarsinha.cz@gmail.com",
+  "aws_region": "us-east-1",
+  "configuration_status": "verified",
+  "next_steps": [
+    "If SES permissions failed: Apply IAM policy from complete_aws_setup_config.json",
+    "If email not verified: Verify email in AWS SES console",
+    "If API server not running: Start the server",
+    "Test fraud detection with real transactions"
+  ]
+}

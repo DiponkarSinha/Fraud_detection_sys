@@ -1,0 +1,91 @@
+{
+  "dataset_info": {
+    "total_transactions": 10000,
+    "fraud_transactions": 1000,
+    "fraud_rate": 0.1,
+    "date_range": {
+      "start": "2025-07-20T02:24:54.941172",
+      "end": "2025-08-18T23:51:51.294940"
+    },
+    "batch_id": "BATCH_BANK_20250818_235135_12fe7bdd",
+    "unique_customers": 1982,
+    "countries": [
+      "BE",
+      "UK",
+      "BR",
+      "DE",
+      "JP",
+      "CH",
+      "ES",
+      "CN",
+      "US",
+      "HK",
+      "SG",
+      "RU",
+      "MX",
+      "IN",
+      "IT",
+      "FR",
+      "NL",
+      "AU",
+      "CA",
+      "AE"
+    ],
+    "transaction_types": [
+      "STANDING_ORDER",
+      "MOBILE_PAYMENT",
+      "ONLINE_TRANSFER",
+      "CASH_DEPOSIT",
+      "CREDIT_CARD",
+      "DEBIT_CARD",
+      "CONTACTLESS",
+      "CHEQUE",
+      "DIRECT_DEBIT",
+      "ATM_WITHDRAWAL",
+      "CHIP_PIN",
+      "WIRE_TRANSFER"
+    ],
+    "merchant_categories": [
+      "HEALTHCARE",
+      "ENTERTAINMENT",
+      "UTILITIES",
+      "INSURANCE",
+      "ATM",
+      "GROCERY",
+      "RETAIL",
+      "AIRLINE",
+      "GAS_STATION",
+      "PHARMACY",
+      "HOTEL",
+      "EDUCATION",
+      "RESTAURANT",
+      "INVESTMENT",
+      "ONLINE_SHOPPING"
+    ]
+  },
+  "feature_summary": {
+    "numerical_features": [
+      "amount",
+      "hour",
+      "day_of_week",
+      "amount_log"
+    ],
+    "categorical_features": [
+      "transaction_type",
+      "merchant_category",
+      "location_country",
+      "channel",
+      "currency",
+      "authentication_method"
+    ],
+    "binary_features": [
+      "is_fraud",
+      "card_present",
+      "is_weekend",
+      "is_business_hours",
+      "is_domestic",
+      "is_card_transaction",
+      "is_online_transaction"
+    ]
+  }
+}

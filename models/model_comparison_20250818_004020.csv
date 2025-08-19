@@ -1,0 +1,5 @@
+Model,ROC AUC,F1 Score,Precision,Recall,Accuracy
+gradient_boosting,0.9974,0.9243,0.9672,0.8850,0.9855
+random_forest,0.9954,0.9022,0.9881,0.8300,0.9820
+svm,0.9751,0.7715,0.9489,0.6500,0.9615
+logistic_regression,0.9092,0.6688,0.9211,0.5250,0.9480
