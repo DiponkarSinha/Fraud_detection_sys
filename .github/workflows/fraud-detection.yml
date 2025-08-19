@@ -115,8 +115,9 @@ jobs:
           import boto3, json, os, subprocess
           from datetime import datetime
 
-          
-          ses_client = boto3.client('ses', region_name=os.environ.get("AWS_REGION", "us-east-1"))
+          # Initialize SES client with explicit region (SES is available in limited regions)
+          ses_region = 'us-east-1'  # SES is definitely available in us-east-1
+          ses_client = boto3.client('ses', region_name=ses_region)
           
           fraud_count = int(os.environ.get("FRAUD_COUNT", "0"))
           timestamp = subprocess.check_output(['date','-u','+%Y-%m-%dT%H:%M:%SZ']).decode().strip()
