@@ -84,10 +84,39 @@ class CSVFileHandler(FileSystemEventHandler):
                 print("☁️ AWS Integration: Lambda processing")
                 if fraud_count > 0:
                     print(f"📧 ALERT: {fraud_count} frauds detected!")
+                    # Automatically send email notification
+                    self.send_email_notification()
                 else:
                     print("✅ No fraud - system healthy")
         except Exception as e:
             print(f"❌ Git error: {e}")
+    
+    def send_email_notification(self):
+        """Automatically send email notification when fraud is detected"""
+        try:
+            # Send email via dashboard API
+            email_data = {
+                "email": "diponkarsinha.cz@gmail.com"
+            }
+            
+            response = requests.post(
+                "http://localhost:5000/api/send-dashboard-link",
+                json=email_data,
+                headers={"Content-Type": "application/json"},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('email_sent'):
+                    print("✅ Email notification sent successfully!")
+                else:
+                    print("❌ Email sending failed")
+            else:
+                print(f"❌ Email API error: {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ Email notification error: {e}")
 
 def main():
     repo_path = Path.cwd()
