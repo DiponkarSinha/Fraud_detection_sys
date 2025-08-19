@@ -165,4 +165,4 @@ except Exception as e:
     print(f"❌ Error sending fraud alert email: {str(e)}")
 PY
         env:
-          FRAUD_COUNT: $FRAUD_COUNT
+          FRAUD_COUNT: ${{ env.FRAUD_COUNT }}
