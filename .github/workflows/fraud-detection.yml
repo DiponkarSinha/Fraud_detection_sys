@@ -81,16 +81,20 @@ jobs:
         # Get fraud count from report
         FRAUD_COUNT=$(python -c "import json; data=json.load(open('outputs/fraud_report.json')); print(data['fraud_detected'])")
         
-        # Invoke AWS Lambda function
-        python3 -c "
+        # Create Python script for Lambda invocation
+        cat > invoke_lambda.py << EOF
 import boto3
 import json
+import os
+import sys
 
-lambda_client = boto3.client('lambda', region_name='$AWS_REGION')
+lambda_client = boto3.client('lambda', region_name=os.environ['AWS_REGION'])
+
+fraud_count = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 
 payload = {
-    'fraud_count': $FRAUD_COUNT,
-    'timestamp': '$(date -u +"%Y-%m-%dT%H:%M:%SZ")',
+    'fraud_count': fraud_count,
+    'timestamp': os.popen('date -u +"%Y-%m-%dT%H:%M:%SZ"').read().strip(),
     'repository': '${{ github.repository }}',
     'commit_sha': '${{ github.sha }}',
     'email_recipient': '${{ secrets.FRAUD_ALERT_EMAIL }}'
@@ -102,6 +106,12 @@ response = lambda_client.invoke(
     Payload=json.dumps(payload)
 )
 
-print(f'✅ AWS Lambda invoked: {response[\"StatusCode\"]}')
-"
+print(f'✅ AWS Lambda invoked: {response["StatusCode"]}')
+EOF
+        
+        # Invoke AWS Lambda function
+        GITHUB_REPOSITORY="${{ github.repository }}" \
+        GITHUB_SHA="${{ github.sha }}" \
+        FRAUD_ALERT_EMAIL="${{ secrets.FRAUD_ALERT_EMAIL }}" \
+        python3 invoke_lambda.py $FRAUD_COUNT
         echo "📧 Email notification triggered via AWS Lambda!"
