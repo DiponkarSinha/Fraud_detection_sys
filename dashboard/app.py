@@ -390,12 +390,12 @@ def send_dashboard_link():
                     <div style="background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%); padding: 25px; color: white;">
                         <h2 style="margin: 0 0 15px 0; font-size: 20px; display: flex; align-items: center;">🔗 Dashboard Access Links</h2>
                         <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin: 10px 0;">
-                            <p style="margin: 5px 0; font-size: 14px;"><strong>🌐 Network URL:</strong></p>
-                            <a href="{dashboard_url}" style="color: #ffeaa7; text-decoration: none; font-weight: 600; word-break: break-all;">{dashboard_url}</a>
+                            <p style="margin: 5px 0; font-size: 14px;"><strong>🌐 Network URL (Mobile Compatible):</strong></p>
+                            <a href="{dashboard_url}" style="color: #ffeaa7; text-decoration: none; font-weight: 600; word-break: break-all; display: block; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 5px; margin-top: 5px;">{dashboard_url}</a>
                         </div>
                         <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin: 10px 0;">
                             <p style="margin: 5px 0; font-size: 14px;"><strong>🏠 Local URL:</strong></p>
-                            <a href="http://localhost:5000" style="color: #ffeaa7; text-decoration: none; font-weight: 600;">http://localhost:5000</a>
+                            <a href="http://localhost:5000" style="color: #ffeaa7; text-decoration: none; font-weight: 600; display: block; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 5px; margin-top: 5px;">http://localhost:5000</a>
                         </div>
                     </div>
                     
@@ -437,7 +437,9 @@ def send_dashboard_link():
                     
                     <!-- CTA Section -->
                     <div style="padding: 30px; text-align: center; background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%);">
-                        <a href="{dashboard_url}" style="display: inline-block; background: linear-gradient(135deg, #ff7675 0%, #e17055 100%); color: white; padding: 15px 40px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 16px; box-shadow: 0 8px 25px rgba(0,0,0,0.2); transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px;">🚀 Launch Dashboard</a>
+                        <a href="{dashboard_url}" style="display: inline-block; background: linear-gradient(135deg, #ff7675 0%, #e17055 100%); color: white; padding: 15px 40px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 16px; box-shadow: 0 8px 25px rgba(0,0,0,0.2); transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px; min-width: 200px; text-align: center;">🚀 Launch Dashboard</a>
+                        <br><br>
+                        <p style="margin: 10px 0; color: rgba(255,255,255,0.9); font-size: 12px;">📱 Mobile users: Copy the network URL above and paste in your mobile browser</p>
                         <p style="margin: 15px 0 0 0; color: rgba(255,255,255,0.8); font-size: 14px;">Click to access your fraud detection system</p>
                     </div>
                     
