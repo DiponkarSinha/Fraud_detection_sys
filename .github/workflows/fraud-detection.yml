@@ -81,7 +81,11 @@ jobs:
         if: success() && hashFiles('outputs/fraud_report.json') != ''
         run: |
           echo "📊 Updating Kaggle dataset with new fraud data..."
-          kaggle datasets version -p data/raw -m "Auto-update: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          # Try to create a new version, if dataset doesn't exist, create it
+          if ! kaggle datasets version -p data/raw -m "Auto-update: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" 2>/dev/null; then
+            echo "Dataset doesn't exist, creating new dataset..."
+            kaggle datasets create -p data/raw
+          fi
           echo "✅ Kaggle dataset updated successfully!"
 
       - name: Send Fraud Alert Email via SES
