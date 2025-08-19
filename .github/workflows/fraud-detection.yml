@@ -51,26 +51,57 @@ jobs:
           fi
         fi
         
-    - name: Trigger Kaggle integration
+    - name: Update Kaggle Dataset
       if: success()
+      env:
+        KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+        KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
       run: |
-        echo "Triggering Kaggle dataset update..."
-        # This would typically call Kaggle API or webhook
-        curl -X POST "https://api.github.com/repos/${{ github.repository }}/dispatches" \
-          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          -d '{"event_type": "kaggle-update", "client_payload": {"fraud_detected": true}}'
+        echo "📊 Updating Kaggle dataset with new fraud data..."
+        pip install kaggle
+        mkdir -p ~/.kaggle
+        echo '{"username":"'$KAGGLE_USERNAME'","key":"'$KAGGLE_KEY'"}' > ~/.kaggle/kaggle.json
+        chmod 600 ~/.kaggle/kaggle.json
         
-    - name: Trigger AWS integration
-      if: success()
-      run: |
-        echo "Triggering AWS Lambda function..."
-        # This would typically call AWS Lambda or SNS
-        echo "AWS integration triggered for fraud analysis"
+        # Create dataset version with new fraud data
+        kaggle datasets version -p data/raw -m "Auto-update: New fraud transactions detected $(date)"
+        echo "✅ Kaggle dataset updated successfully!"
         
-    - name: Send email notification
+    - name: Trigger AWS Lambda for Email Notification
       if: success()
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       run: |
-        echo "Sending email notification..."
-        # This would typically use AWS SES, SendGrid, or similar service
-        echo "Email notification sent to fraud detection team"
+        echo "☁️ Triggering AWS Lambda for fraud email notification..."
+        pip install boto3
+        
+        # Get fraud count from report
+        FRAUD_COUNT=$(python -c "import json; data=json.load(open('outputs/fraud_report.json')); print(data['fraud_detected'])")
+        
+        # Invoke AWS Lambda function
+        python3 -c "
+import boto3
+import json
+
+lambda_client = boto3.client('lambda', region_name='$AWS_REGION')
+
+payload = {
+    'fraud_count': $FRAUD_COUNT,
+    'timestamp': '$(date -u +"%Y-%m-%dT%H:%M:%SZ")',
+    'repository': '${{ github.repository }}',
+    'commit_sha': '${{ github.sha }}',
+    'email_recipient': '${{ secrets.FRAUD_ALERT_EMAIL }}'
+}
+
+response = lambda_client.invoke(
+    FunctionName='fraud-detection-email-alert',
+    InvocationType='Event',
+    Payload=json.dumps(payload)
+)
+
+print(f'✅ AWS Lambda invoked: {response[\"StatusCode\"]}')
+"
+        echo "📧 Email notification triggered via AWS Lambda!"
