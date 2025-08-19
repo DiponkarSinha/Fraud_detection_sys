@@ -1,18 +1,18 @@
 name: Fraud Detection Pipeline
 
 on:
-  push:                           # Run on every push to main
+  push:
     branches: [ "main" ]
     paths-ignore:
       - "**/*.md"
       - ".gitignore"
-  pull_request:                   # Run on pull requests to main
+  pull_request:
     branches: [ "main" ]
-  workflow_dispatch:              # Run manually from GitHub Actions tab
+  workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write                 # Required for AWS OIDC
+  id-token: write   # For AWS OIDC
 
 env:
   AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
@@ -39,17 +39,17 @@ jobs:
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
           restore-keys: ${{ runner.os }}-pip-
 
-      - name: Install dependencies
+      - name: Install dependencies (pip, project, Kaggle, boto3)
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install kaggle boto3
 
       - name: Configure Kaggle (from secrets)
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
-          pip install kaggle
           mkdir -p ~/.kaggle
           printf '{"username":"%s","key":"%s"}' "$KAGGLE_USERNAME" "$KAGGLE_KEY" > ~/.kaggle/kaggle.json
           chmod 600 ~/.kaggle/kaggle.json
@@ -78,45 +78,45 @@ jobs:
           if-no-files-found: warn
 
       - name: Update Kaggle Dataset
-        if: success() && (hashFiles('outputs/fraud_report.json') != '')
+        if: success() && hashFiles('outputs/fraud_report.json') != ''
         run: |
           echo "📊 Updating Kaggle dataset with new fraud data..."
           kaggle datasets version -p data/raw -m "Auto-update: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           echo "✅ Kaggle dataset updated successfully!"
 
       - name: Send Fraud Alert Email via SES
-        if: success() && (hashFiles('outputs/fraud_report.json') != '')
+        if: success() && hashFiles('outputs/fraud_report.json') != ''
         env:
           FRAUD_ALERT_EMAIL: ${{ secrets.FRAUD_ALERT_EMAIL }}
           SES_SENDER_EMAIL: ${{ secrets.SES_SENDER_EMAIL }}
         run: |
-          pip install boto3
+          # Get fraud count from JSON and export so Python can read it from env
           FRAUD_COUNT=$(python - <<'PY'
-import json,sys
+import json, sys
 try:
-  with open("outputs/fraud_report.json") as f:
-    d=json.load(f)
-  print(int(d.get("fraud_detected",0)))
+    with open("outputs/fraud_report.json") as f:
+        d = json.load(f)
+    print(int(d.get("fraud_detected", 0)))
 except Exception:
-  print(0)
+    print(0)
 PY
 )
+          export FRAUD_COUNT
+
+          # Send email via SES
           python - <<'PY'
 import boto3, json, os, subprocess
 from datetime import datetime
 
-# Initialize SES client
 ses_client = boto3.client('ses', region_name=os.environ.get("AWS_REGION", "us-east-1"))
 
-# Get fraud details
 fraud_count = int(os.environ.get("FRAUD_COUNT", "0"))
 timestamp = subprocess.check_output(['date','-u','+%Y-%m-%dT%H:%M:%SZ']).decode().strip()
 repository = os.environ.get("GITHUB_REPOSITORY", "")
 commit_sha = os.environ.get("GITHUB_SHA", "")
-recipient_email = os.environ.get("FRAUD_ALERT_EMAIL", "diponkarsinha.cz@gmail.com")
-sender_email = os.environ.get("SES_SENDER_EMAIL", "u4510634023@gmail.com")
+recipient_email = os.environ.get("FRAUD_ALERT_EMAIL", "")
+sender_email = os.environ.get("SES_SENDER_EMAIL", "")
 
-# Create email content
 if fraud_count > 0:
     subject = f"🚨 FRAUD ALERT: {fraud_count} Fraudulent Transaction(s) Detected"
     priority = "HIGH"
@@ -126,7 +126,6 @@ else:
     priority = "NORMAL"
     alert_type = "SYSTEM HEALTHY"
 
-# Email body
 email_body = f"""FRAUD DETECTION SYSTEM ALERT
 ============================
 
@@ -148,7 +147,6 @@ Fraud Report: https://github.com/{repository}/blob/main/outputs/fraud_report.jso
 This is an automated message from the Fraud Detection System.
 Powered by AWS SES + GitHub Actions + Machine Learning"""
 
-# Send email via SES
 try:
     response = ses_client.send_email(
         Source=sender_email,
@@ -158,8 +156,9 @@ try:
             'Body': {'Text': {'Data': email_body, 'Charset': 'UTF-8'}}
         }
     )
-    print(f"✅ Fraud alert email sent successfully!")
-    print(f"📧 MessageId: {response['MessageId']}")
+    print("✅ Fraud alert email sent successfully!")
+    print(f"📧 MessageId: {response.get('MessageId')}")
     print(f"📊 Fraud count: {fraud_count}, Recipient: {recipient_email}")
 except Exception as e:
-    print(f"❌ Error sending fraud alert email: {str(e)}")
+    print(f"❌ Error sending fraud alert email: {e}")
+PY
